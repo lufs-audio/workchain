@@ -328,6 +328,24 @@ done
 # README.md and docs/*.md, so four component READMEs kept telling users to run
 # `lufs-workchain run-component ...` — a command that does not exist — and it reported green.
 # A check with the wrong scope is indistinguishable from no check.
+# Declared licence must match the LICENSE file. agent.json shipped "MIT" while LICENSE was
+# Apache-2.0 — a machine-readable discovery file is exactly where a wrong licence does damage,
+# because tooling believes it.
+if [[ -f LICENSE && -f agent.json ]]; then
+    lic_file=$(head -20 LICENSE | grep -oE 'Apache License|MIT License|GNU (Lesser )?General Public License' | head -1)
+    lic_decl=$(python3 -c "import json;print(json.load(open('agent.json')).get('license',''))" 2>/dev/null)
+    case "$lic_file:$lic_decl" in
+        "Apache License:Apache-2.0"|"MIT License:MIT") ok "agent.json licence ($lic_decl) matches LICENSE ($lic_file)" ;;
+        *) bad "agent.json declares '$lic_decl' but LICENSE is '$lic_file'" ;;
+    esac
+fi
+
+# Internal branch names have no business in a public tree.
+branchleak=$(grep -rIl -E '\b(ciani|kardashev|amacher|oliveros|chachi|deedee)/[a-z0-9-]+' \
+    --exclude-dir=.git --exclude-dir=node_modules --exclude='release-check.sh' . 2>/dev/null || true)
+if [[ -z "$branchleak" ]]; then ok "no internal branch names referenced"
+else bad "internal branch names referenced in: $(echo "$branchleak" | tr '\n' ' ')"; fi
+
 stale_cli=$(grep -rIl -E '\blufs-workchain (run-component|registry|doctor|run|validate|chains|components|generate)\b' \
     --include='*.md' --exclude-dir=.git --exclude-dir=node_modules . 2>/dev/null || true)
 if [[ -z "$stale_cli" ]]; then
