@@ -1,6 +1,6 @@
-# Publishing @lufs/workchain to npm
+# Publishing @lufs-audio/workchain to npm
 
-This document describes how to publish the `@lufs/workchain` package from the **repo root**.
+This document describes how to publish the `@lufs-audio/workchain` package from the **repo root**.
 
 ---
 
@@ -10,21 +10,28 @@ This document describes how to publish the `@lufs/workchain` package from the **
    `https://github.com/lufs-audio/workchain`; publishing from a private repo is possible
    but the README and repository links will 404 for consumers.
 
-2. The `@lufs` scope must exist and you must be a member of it. **As of the last check the
-   scope is entirely unclaimed** — no `@lufs/*` package is published — so this is a real
-   first-time step, not a formality. `npm publish` fails with a 404 against a scope that
-   does not exist.
+2. The publishing scope is **`@lufs-audio`**, at parity with the GitHub organisation. The org
+   exists; nothing to do here.
 
-   **There is no `npm org create`.** The CLI's `npm org` supports only `set`, `rm` and `ls`;
-   organisations are created in the browser. Create the org (free for public packages) at:
+   `@lufs` was the original intent and is **already registered by someone else**, which is why
+   the package is `@lufs-audio/workchain`. Parity with the GitHub org is the better answer
+   anyway: the trusted-publisher configuration below keys on the GitHub organisation name, so
+   having the two match removes a class of mismatch.
+
+   **How to check whether a scope is free — and how not to.** Requesting package names under
+   a scope proves nothing. An org can be registered with **zero** published packages, in which
+   case every package name under it returns 404 and a registry search for the scope returns
+   `total: 0`. Both were true of `@lufs` at the moment it was already taken. The only reliable
+   check is attempting to create the org:
 
    <https://www.npmjs.com/org/create>
 
-   Then, only if you want additional members later:
+   **There is also no `npm org create`.** The CLI's `npm org` supports only `set`, `rm` and
+   `ls`; organisations are created in the browser. If you ever add members:
 
    ```sh
-   npm team create lufs:developers            # the team must exist before anyone is added
-   npm team add lufs:developers <npm-username>
+   npm team create lufs-audio:developers      # the team must exist before anyone is added
+   npm team add lufs-audio:developers <npm-username>
    ```
 
    A one-person org needs neither command — being the org owner is enough to publish.
@@ -54,8 +61,8 @@ From the repo root, generate and inspect the tarball without publishing:
 
 ```sh
 npm pack --dry-run             # prints the full file list and sizes
-npm pack                       # writes lufs-workchain-0.1.0.tgz
-tar -tzf lufs-workchain-0.1.0.tgz | head -40
+npm pack                       # writes lufs-audio-workchain-0.1.0.tgz
+tar -tzf lufs-audio-workchain-0.1.0.tgz | head -40
 ```
 
 Confirm the list includes:
@@ -68,7 +75,7 @@ Confirm the list includes:
 And does NOT include `node_modules/`, `__pycache__/`, `docs/`, `ci/`, `tools/`, `mcp-server/`,
 or any `.venv/` directory.
 
-Clean up afterwards: `rm lufs-workchain-0.1.0.tgz`
+Clean up afterwards: `rm lufs-audio-workchain-0.1.0.tgz`
 
 ---
 
@@ -91,8 +98,8 @@ Install into a clean, temporary directory to confirm the global install path wor
 
 ```sh
 mkdir /tmp/wc-smoke && cd /tmp/wc-smoke
-npm install @lufs/workchain          # or: npm install -g @lufs/workchain
-node node_modules/@lufs/workchain/cli/bin/workchain.js components --json
+npm install @lufs-audio/workchain          # or: npm install -g @lufs-audio/workchain
+node node_modules/@lufs-audio/workchain/cli/bin/workchain.js components --json
 ```
 
 You should see a JSON array of available components. A `workchain config set workchainRoot`
@@ -160,13 +167,13 @@ publish from a laptop fail.
 If you need to pull a bad release within 72 hours of publishing:
 
 ```sh
-npm unpublish @lufs/workchain@0.1.0 --force
+npm unpublish @lufs-audio/workchain@0.1.0 --force
 ```
 
 After 72 hours, unpublish is blocked by npm policy. Use deprecation instead:
 
 ```sh
-npm deprecate @lufs/workchain@0.1.0 "This release has a critical bug; use 0.1.1"
+npm deprecate @lufs-audio/workchain@0.1.0 "This release has a critical bug; use 0.1.1"
 ```
 
 Users will see the deprecation warning on install but the package remains accessible.
