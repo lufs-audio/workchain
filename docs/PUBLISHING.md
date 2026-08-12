@@ -10,12 +10,24 @@ This document describes how to publish the `@lufs/workchain` package from the **
    `https://github.com/lufs-audio/workchain`; publishing from a private repo is possible
    but the README and repository links will 404 for consumers.
 
-2. You must belong to (or create) the `lufs` npm organisation:
+2. The `@lufs` scope must exist and you must be a member of it. **As of the last check the
+   scope is entirely unclaimed** — no `@lufs/*` package is published — so this is a real
+   first-time step, not a formality. `npm publish` fails with a 404 against a scope that
+   does not exist.
+
+   **There is no `npm org create`.** The CLI's `npm org` supports only `set`, `rm` and `ls`;
+   organisations are created in the browser. Create the org (free for public packages) at:
+
+   <https://www.npmjs.com/org/create>
+
+   Then, only if you want additional members later:
 
    ```sh
-   npm org create lufs          # one-time, if the org does not yet exist
-   npm team add lufs:developers <your-npm-username>
+   npm team create lufs:developers            # the team must exist before anyone is added
+   npm team add lufs:developers <npm-username>
    ```
+
+   A one-person org needs neither command — being the org owner is enough to publish.
 
 3. Authenticate with npm:
 
@@ -23,6 +35,16 @@ This document describes how to publish the `@lufs/workchain` package from the **
    npm login                    # opens browser for OAuth; or use npm login --auth-type=legacy
    npm whoami                   # verify you are logged in
    ```
+
+4. **If your account has 2FA set to "authorization and writes"**, the publish needs a
+   one-time code. Interactively `npm publish` prompts for it; in a non-interactive shell it
+   fails with `EOTP`, which reads like an auth failure rather than a missing code:
+
+   ```sh
+   npm publish --access public --otp=123456
+   ```
+
+   Leaving 2FA on writes is the right setting. Just have the authenticator open.
 
 ---
 
@@ -87,6 +109,49 @@ After a successful publish:
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+---
+
+## After 0.1.0: publish from CI with provenance
+
+**This cannot be used for the first release, and that is not a configuration mistake.** A
+trusted publisher is configured in the *package's* settings on npmjs.com, and the package has
+to exist before those settings exist. So `0.1.0` goes out by hand as described above, and
+everything after it can go out over OIDC with no token stored anywhere.
+
+Worth doing for `0.1.1`, because it is the supply-chain equivalent of what this project
+argues about audio: the registry stops taking our word for where the tarball came from and
+instead verifies it cryptographically. npm attaches a **provenance attestation** linking the
+published bytes to a specific commit and workflow run, and shows a verified badge on the
+package page.
+
+Once `0.1.0` is live:
+
+1. On npmjs.com → package settings → **Trusted Publisher** → GitHub Actions. Fields are
+   case-sensitive and exact: organisation `lufs-audio`, repository `workchain`, workflow
+   filename `publish.yml` (**filename only**, not `.github/workflows/publish.yml`).
+2. Add `.github/workflows/publish.yml` with `permissions: id-token: write` and **no**
+   `NODE_AUTH_TOKEN` on the publish step — npm only falls back to OIDC when it finds no
+   token, and an *empty* `NODE_AUTH_TOKEN` counts as a token.
+3. Pin `node-version: '24'`. Trusted publishing needs **npm CLI ≥ 11.5.1**; Node 22 ships
+   npm 10, which does not attempt the OIDC exchange at all and fails looking like a plain
+   auth error. If the runner must stay on an older Node, add `npm install -g npm@latest`
+   before the publish step.
+4. Do **not** add `--provenance`. Trusted publishing generates provenance by default; the
+   flag is redundant.
+
+Constraints worth knowing before relying on it:
+
+- **GitHub-hosted runners only.** Self-hosted is not supported, so this one workflow cannot
+  move to the LUFS fleet — the same reason `ci/` is GitHub-hosted for this repo.
+- **Public repository required** for provenance. Private source repos get trusted publishing
+  but no attestation.
+- **`repository.url` must match the publishing repo**, or the publish fails a signature check
+  with a `422`. Ours already points at `git+https://github.com/lufs-audio/workchain.git`.
+
+Do **not** set `publishConfig.provenance: true` in `package.json` before the manual first
+publish. Provenance is only obtainable from a cloud CI runner, so declaring it would make a
+publish from a laptop fail.
 
 ---
 
