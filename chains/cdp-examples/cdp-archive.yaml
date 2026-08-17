@@ -1,0 +1,23 @@
+name: "A CDP render, made findable"
+description: "One transform, then everything needed to live in a sound library: a content hash and catalog number, measured DSP features, a vector embedding under a stable contract, and a three-second audition clip taken from the loudest window with a waveform to match. None of this is something CDP does, and all of it is what turns a render into something you can find again."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: blur.suppress
+      values_json: '{"partials": 12}'
+      min_peak_dbfs: -60
+  - name: probe
+    enabled: true
+    params: {}
+  - name: features
+    enabled: true
+    params: {}
+  - name: embed
+    enabled: true
+    params: {}
+  - name: hook
+    enabled: true
+    params:
+      hook_seconds: 3

@@ -1,0 +1,16 @@
+name: "study1 blur-suppress"
+description: "remove the 12 loudest partials. Transform, then measure the result two ways so the effect can be compared with every other effect on the same source."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: blur.suppress
+      values_json: '{"partials": 12}'
+      min_peak_dbfs: -60
+  - name: features
+    enabled: true
+    params: {}
+  - name: embed
+    enabled: true
+    params: {}

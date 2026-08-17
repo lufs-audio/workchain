@@ -1,0 +1,16 @@
+name: "CDP: Spectral Widen"
+description: "The same family as the wash, but on the other axis. stretch.spectrum pulls the partials apart in frequency while leaving the duration alone, dividing at 400 Hz so the body stays put and only what sits above it is stretched by three. A 0.45-second shaker keeps its length and loses its identity."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: stretch.spectrum
+      values_json: '{"divide": 400, "stretch": 3}'
+      min_peak_dbfs: -60
+  - name: normalization
+    enabled: true
+    params:
+      target_lufs: -18
+      two_pass: true
+      true_peak: -1.5

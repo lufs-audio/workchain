@@ -1,0 +1,19 @@
+name: "CDP: Bloom"
+description: "The oldest trick in the CDP book, and still the most convincing. A 0.45-second shaker hit stretched eightfold in the frequency domain: the transient becomes an envelope, the noise becomes pitch, and nothing about the source suggests it could hold a note for three and a half seconds."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: stretch.time
+      values_json: '{"factor": 8}'
+      min_peak_dbfs: -60
+  - name: normalization
+    enabled: true
+    params:
+      target_lufs: -18
+      two_pass: true
+      true_peak: -1.5
+  - name: audio_benchmark
+    enabled: true
+    params: {}

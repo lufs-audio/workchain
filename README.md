@@ -1,199 +1,119 @@
-# Workchain
+# LUFS Workchain — CDP examples
 
-**A YAML-driven, agent-first audio processing engine where "it worked" means proven, not
-exited 0.**
+> **This is a demonstration branch, not a merge candidate.** It exists to answer one question:
+> what does a verifying engine add to [cdp-wasm](https://github.com/cdp-wasm-suite/cdp-wasm)?
+>
+> The canonical engine lives on [`main`](https://github.com/lufs-audio/workchain/tree/main) —
+> start there for anything other than this. The branch adds four components, eight example
+> chains, and a report.
 
-```yaml
-# chains/deliverable-voice.yaml — prep a recording to a dialogue delivery spec
-name: "Deliverable: Voice / Dialogue"
-version: "1.0"
-steps:
-  - name: format_conversion
-    params:
-      target_format: wav
-      sample_rate: 48000
-      bit_depth: 24
-      channels: 1
-  - name: normalization
-    params:
-      target_lufs: -21
-      true_peak: -3.0
-  - name: audio_benchmark
-    params:
-      expected_spec: "24/48000/1"
-```
-
-```bash
-workchain run deliverable-voice take-07.wav -o ./out
-```
-
-If the conversion does not actually come out at 48 kHz / 24-bit / mono, that step **fails**. If
-the normalizer misses −21 LUFS, that step **fails**. Not "warns" — fails, with the measured
-value, and the chain stops. The component does not get to grade its own homework.
-
-Real output from the second case, on a signal whose crest factor makes the target unreachable
-under the peak ceiling:
-
-```
-✗ normalization — verification FAILED (1 of 8 checks)
-    integrated_loudness_on_target: measured -10.56 LUFS vs target -5.0 (±1.0) → off by 5.56 LU
-Chain halted: step 'normalization' failed
-```
-
-The component exited 0 and reported "Normalization completed". The verifier disagreed.
+**Start with [`docs/cdp-report.md`](docs/cdp-report.md).** It is the findings in text. There is a
+richer version at [`docs/cdp-report.html`](docs/cdp-report.html) with the audio and the
+spectrograms embedded — GitHub will not render it in the browser, so download it and open it
+locally.
 
 ---
 
-## The problem this exists for
+## What Workchain is
 
-Audio DSP almost never crashes. It produces *something*: silence, a 6 dB level error, a 30 ms
-truncation, a decorrelated stereo image, two seconds of −64 dBFS. Every one of those is a valid
-audio file that passes every check a normal pipeline makes.
+A YAML-driven, agent-first audio processing engine whose defining promise is **verifiable
+correctness**: *"works" means proven correct, not merely exited 0.*
 
-That was survivable while a human sat in the loop, because the ear is a post-condition — it
-fires automatically and it cannot be fooled by a byte count. **Automation deletes that sensor
-and, by default, replaces it with nothing.** An agent cannot listen. It reads an exit code, and
-an exit code cannot tell the difference between a stretched sound and an empty file.
+Self-contained **components** (a `step.yaml` contract + a `run.sh` + a README) compose into
+declarative **chains**. Every component declares what must be true of its output, and a single
+verifier re-measures the artifact after the run — so a step passes only when the file exists,
+decodes, carries the declared keys, and satisfies its numeric post-conditions. Three interfaces
+(a Bash engine, a Node CLI, a Python MCP server) share one parser so they cannot silently diverge.
 
-So a component that runs but produces the wrong output is worse than one that fails, because it
-lies to whatever is operating it. A tool that fails is a nuisance. **A tool that lies is a
-liability**, because it spends trust it did not earn and the bill arrives later, for someone who
-has stopped checking.
+`cdp_transform` wraps cdp-wasm's 232 effects under a fail-closed parameter and output contract.
+It is the one component in the project that wraps someone else's library, which is why it is the
+interesting one.
 
-Workchain's answer is that every component declares a contract, and a single verifier enforces
-it after every run.
+## Run it
 
-## How it works
-
-A **component** is a folder. That is the whole registry — there is no database.
-
-```
-components/normalization/
-├── step.yaml      # params, outputs, requirements (verified IN), verify (verified OUT)
-├── run.sh         # does the work
-└── README.md
-```
-
-Its `step.yaml` declares two contracts:
-
-**Verified IN** — checked *before* `run.sh` executes. Missing `ffmpeg`, missing model, wrong
-Python version: the step fails immediately with a clear message, instead of half-running and
-dying somewhere in the middle.
-
-```yaml
-requirements:
-  commands: [ffmpeg, ffprobe]
-```
-
-**Verified OUT** — checked *after* a clean exit, by `lib/workchain_verify.py`:
-
-```yaml
-verify:
-  outputs:
-    - name: primary_output
-      assert: [exists, non_empty, audio_valid]
-  post_conditions:
-    - id: integrated_loudness_on_target
-      check: audio_lufs_within
-      output: primary_output
-      target_param: target_lufs
-      tolerance: 1.0
-```
-
-`audio_valid` re-measures the file with ffprobe and requires a positive duration.
-`audio_lufs_within` **independently re-measures the loudness** and compares it to what was
-asked for. The component's own logged value is not evidence.
-
-That distinction is the entire design. `non_empty` asks a filesystem question — a 44-byte WAV
-header with zero samples in it passes. `audio_valid` asks an audio question, and it does not.
-Most silent-failure bugs live in exactly that gap.
-
-### Creative operations, where there is no right answer
-
-You cannot assert the correct output of a granular texture. So don't — assert **relations**
-instead:
-
-- duration preserved, or related to the requested factor
-- loudness preserved where the operation should not have changed it
-- separated stems recombine to the source within a residual tolerance
-- the same input and parameters render byte-identically
-
-One trap worth knowing, because we shipped it: an equality assertion between two absent values
-*passes*. `None == None` is true, and CI reported green on a run where the component never
-started. Equality fails **open**; inequality fails **closed**. Guard both sides' existence
-before comparing.
-
-## Three interfaces, one parser
-
-```
-engine/       Bash        ./engine/workchain-engine.sh -c chain.yaml in.wav -o out/
-cli/          Node        workchain run <chain> <input> --json
-mcp-server/   Python      list_components · get_step_schema · validate_chain · run_chain
-```
-
-All three parse and resolve through `lib/workchain_yaml.py`. There is no fourth parser, and
-adding one is the architectural mistake this layout exists to prevent — three interfaces that
-disagree about what a chain means are three different products.
-
-## Built for agents, on purpose
-
-`--json` on everything. NDJSON progress on stderr, final JSON on stdout. Schema-validated
-params with declared types and ranges. Meaningful exit codes. `--dry-run`. `validate --strict`
-before you run. Machine-readable discovery in `llms.txt` and `agent.json`.
-
-And the part that matters more than any of it: when an agent reports that a step succeeded, that
-claim has been independently checked.
-
-## Quick start
+Requires **Node 18+**, **Python 3.10+**, **ffmpeg** (with `ffprobe`), and `numpy`.
 
 ```bash
-git clone https://github.com/lufs-audio/workchain
-cd workchain/cli && npm install && npm link
-cd ..
+git clone -b ciani/cdp-examples-for-oliver https://github.com/lufs-audio/workchain.git
+cd workchain
+cd cli && npm ci && cd ..
 
-workchain components                     # what's installed
-workchain doctor                         # can this machine run them?
-workchain chains                         # available chains
-workchain run deliverable-voice in.wav -o ./out --json
+# cdp-wasm is an optional dependency; install it where the component can find it
+mkdir -p /tmp/cdp && (cd /tmp/cdp && npm init -y >/dev/null && npm i cdp-wasm@^0.6.0)
+export CDP_WASM_DIR=/tmp/cdp/node_modules/cdp-wasm
+
+# generate the three source sounds (deterministic — regenerates bit-for-bit)
+python3 examples/make-cdp-sources.py examples/sources
+
+# a transform
+./engine/workchain-engine.sh -c chains/cdp-examples/cdp-bloom.yaml \
+  examples/sources/shaker.wav -o /tmp/out-bloom
+
+# the interesting one: transform, then everything CDP has no equivalent for
+./engine/workchain-engine.sh -c chains/cdp-examples/cdp-archive.yaml \
+  examples/sources/bell.wav -o /tmp/out-archive
+
+# and the one that must FAIL — an out-of-range parameter, refused before any audio is touched
+./engine/workchain-engine.sh -c chains/cdp-examples/cdp-refused.yaml \
+  examples/sources/bell.wav -o /tmp/out-refused ; echo "exit $?"
 ```
 
-Requires Node 18+, Python 3.10+, and ffmpeg. The light components need nothing else — no venv,
-no model weights, no native toolchain.
-
-Write your own:
+The verification record is the point. After any run:
 
 ```bash
-workchain generate component --name my_thing --description "..."
+python3 -c "
+import json,sys
+c=json.load(open(sys.argv[1]))
+for name,s in c['steps'].items():
+    v=s.get('verification') or {}
+    print(f\"{name:<18} verified={v.get('verified')} checks={len(v.get('checks') or [])}\")
+    for ch in v.get('checks') or []: print('   ', ch.get('name'), '—', ch.get('detail'))
+" /tmp/out-archive/context.json
 ```
 
-The scaffold **fails until you implement it** — the sentinel is in the file, not in a comment —
-so a generated component can never be mistaken for a working one.
+## The chains
 
-## Where to look first
+| chain | what it shows |
+| --- | --- |
+| `cdp-bloom.yaml` | `stretch.time` ×8 — a 0.45s shaker becomes 3.8s |
+| `cdp-wash.yaml` | `stretch.time` ×6 — a struck bar held open for ~10s |
+| `cdp-dissolve.yaml` | `blur.blur` with `windows` driven **1 → 80 by a breakpoint envelope** |
+| `cdp-trace.yaml` | `hilite.trace` — keep the 6 loudest partials per window |
+| `cdp-widen.yaml` | `stretch.spectrum` — the frequency axis, duration preserved |
+| `cdp-measure.yaml` | transform → `features` → `embed`: the result measured two independent ways |
+| `cdp-archive.yaml` | transform → `probe` → `features` → `embed` → `hook`: **30 checks over 5 steps** |
+| `cdp-refused.yaml` | an out-of-range parameter. **This one is supposed to fail** |
 
-If you only read three files, read these in order:
+## The components on this branch
 
-1. **`lib/workchain_verify.py`** — the whole idea, in one file.
-2. **`components/normalization/step.yaml`** — a real contract, including the post-condition that
-   closes the "measured it and never compared it" bug we shipped in this very component.
-3. **`docs/format.md`** — the chain and `step.yaml` specification.
+Beyond `main`'s set, four light components with no CDP equivalent — numpy, ffmpeg and the standard
+library only, no models and no venv:
 
-## Licensing
+| component | what it does |
+| --- | --- |
+| [`probe`](components/probe) | content SHA-256, container and stream facts, measured level. A probe it cannot measure **fails** rather than writing nulls |
+| [`features`](components/features) | spectral centroid, 85% rolloff, RMS, zero-crossing rate, brightness. `bpm`/`key` are declared **null** rather than estimated badly |
+| [`embed`](components/embed) | an L2-normalised float32 vector behind a **stable contract** — swap the model, keep the interface |
+| [`hook`](components/hook) | a clip cut from the loudest window plus a waveform PNG, so a large collection is auditionable |
 
-Apache-2.0. The format is unencumbered and we want other implementations of it. What is
-published, what is not, and why: [`LICENSING.md`](./LICENSING.md).
+These are ported copies: their in-repo documentation was rewritten for this branch to drop
+references to the private pipeline they were originally built for. The code is unchanged.
 
-Pull requests are not being accepted yet, for ownership reasons explained plainly in
-[`CONTRIBUTING.md`](./CONTRIBUTING.md). Bug reports — especially "it said it worked and it
-didn't" — are wanted.
+## A note for whoever checks this out
 
-## Lineage
+Two things worth knowing, because they are the kind of thing this project exists to surface.
 
-Workchain descends from a tradition it did not invent. The
-[Composers Desktop Project](https://www.composersdesktop.com) (Trevor Wishart, Richard Dobson,
-Martin Atkins, Archer Endrich, Richard Orton and others, from 1983) established that serious
-sound transformation could be a set of small composable command-line programs a composer drives
-directly. That is the shape of this engine, forty years later, with the operator changed and a
-contract added.
+**The examples are reproducible on purpose.** `examples/make-cdp-sources.py` regenerates the three
+sources bit-for-bit rather than committing WAVs, because a committed binary fixture is one nobody
+can regenerate. The pluck's phase seeding looks odd and is commented — it faithfully reproduces
+the draw order of the original run, so the chains and the report agree exactly.
 
-Built by [LUFS Audio](https://lufs.audio).
+**cdp-wasm's audio is bit-exact run to run.** Its *container* is not: the `PEAK` chunk timestamp
+and a `LIST/adtl` `DATE` string both carry wall-clock time at one-second resolution, so two
+identical renders differ in exactly two bytes when they straddle a second boundary. That matters
+if you content-address the output — as `probe` does. `cdp_transform` therefore compares decoded
+samples, not files, and records the container comparison separately as a non-gating fact.
+
+---
+
+Apache-2.0 · `npm i -g @lufs-audio/workchain` · [lufs.audio](https://lufs.audio)

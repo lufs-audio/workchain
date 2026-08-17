@@ -1,0 +1,16 @@
+name: "CDP: Dissolve"
+description: "A plucked string smears into noise as it decays. The blur window count is driven by a breakpoint envelope from 1 to 80 rather than a constant, so the sound dissolves over its own duration instead of being uniformly blurred."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: blur.blur
+      values_brk_json: '{"windows": "0 1\n0.6 6\n1.2 34\n1.8 80"}'
+      min_peak_dbfs: -60
+  - name: normalization
+    enabled: true
+    params:
+      target_lufs: -18
+      two_pass: true
+      true_peak: -1.5

@@ -275,13 +275,31 @@ record.envelopes_all_applied =
   record.envelopes_requested.length === record.envelopes_applied.length;
 record.render_sha256 = createHash('sha256').update(bytes).digest('hex');
 
-// Metamorphic: same input + same params => byte-identical audio. Both sides must
-// actually exist before we compare (an unguarded equality passes on None == None).
+// Hash the SAMPLES, not the container. CDP writes a PEAK chunk whose timestamp field
+// (offset 50 on a mono output) and a LIST/adtl DATE string both carry wall-clock time at
+// one-second resolution, so two identical renders differ in exactly two bytes when they
+// straddle a second boundary. Hashing the file made this check pass only when both
+// renders landed inside the same second — it reported PASS on luck. cdp-wasm's audio is
+// in fact bit-identical every time; it is the container that moves.
+const sampleDigest = (wavBytes) => {
+  const chans = decodeWav(wavBytes);
+  const list = Array.isArray(chans) && chans[0] instanceof Float32Array ? chans : [chans];
+  const h = createHash('sha256');
+  for (const ch of list) h.update(Buffer.from(new Float32Array(ch).buffer));
+  return h.digest('hex');
+};
+record.render_samples_sha256 = sampleDigest(bytes);
+
+// Metamorphic: same input + same params => identical AUDIO. Both sides must actually
+// exist before we compare (an unguarded equality passes on None == None).
 if (record.deterministic_expected) {
   try {
     const again = await render();
     record.render_sha256_repeat = createHash('sha256').update(again).digest('hex');
-    record.determinism_ok = record.render_sha256_repeat === record.render_sha256;
+    record.render_samples_sha256_repeat = sampleDigest(again);
+    record.determinism_ok =
+      record.render_samples_sha256_repeat === record.render_samples_sha256;
+    record.container_bytes_stable = record.render_sha256_repeat === record.render_sha256;
   } catch (e) {
     console.error(`cdp_transform: determinism re-render failed: ${e.message}`);
     record.determinism_ok = false;

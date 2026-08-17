@@ -1,0 +1,16 @@
+name: "CDP: Spectral Trace"
+description: "Keep only the six loudest partials in each analysis window and discard the rest. The metal bar's inharmonic character survives while the noise floor and strike transient are thrown away."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: hilite.trace
+      values_json: '{"partials": 6}'
+      min_peak_dbfs: -60
+  - name: normalization
+    enabled: true
+    params:
+      target_lufs: -18
+      two_pass: true
+      true_peak: -1.5

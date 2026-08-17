@@ -1,0 +1,10 @@
+name: "CDP: Refused before processing"
+description: "stretch.time driven to 0.02, far below the catalog's declared minimum of 0.25. The wrapper validates every supplied value against the catalog BEFORE any audio is touched, so this never reaches CDP."
+version: "1.0"
+steps:
+  - name: cdp_transform
+    enabled: true
+    params:
+      effect: stretch.time
+      values_json: '{"factor": 0.02}'
+      min_peak_dbfs: -60

@@ -25,7 +25,7 @@
       "version": "1.0"
     },
     {
-      "definition_hash": "sha256:a6636ae7a5f8654128cbe42728563b0a979629bccb5ca4c620c0d3db6fa79ab0",
+      "definition_hash": "sha256:74d287626f0141de51ace920eb4c5cc58486d568841e9d6618468764b7c8f0e2",
       "description": "Composers Desktop Project sound transformation via cdp-wasm (232 typed spectral / granular / waveset effects), under a fail-closed parameter and output contract",
       "dir": "components/cdp_transform",
       "name": "cdp_transform",
@@ -86,6 +86,50 @@
       "version": "1.0"
     },
     {
+      "definition_hash": "sha256:a09899fc7996b5d05c8a4d166eeef44e9281293b1af289c52f937af54ddaa34e",
+      "description": "Audio embedding behind a stable vector contract (input: audio; output: L2-normed float32 vector of declared dim). v0 ships 'melstats-v0' \u2014 a dependency-light log-mel band-energy vector (numpy) that stands in for LAION-CLAP/MuQ-MuLan without changing the contract. Swap the model, keep the contract.",
+      "dir": "components/embed",
+      "name": "embed",
+      "params": [
+        "model"
+      ],
+      "requirements": [
+        "commands"
+      ],
+      "tier": "light",
+      "type": "data",
+      "verify": {
+        "asserts": [
+          "embedding"
+        ],
+        "has_contract": true,
+        "post_conditions": []
+      },
+      "version": "0.1"
+    },
+    {
+      "definition_hash": "sha256:66e380d8ab44d08e56cceb279e30dfcf39a3c5ed2d16f1889a97a19316d0614e",
+      "description": "Cheap deterministic DSP features (spectral centroid, rms, zcr, brightness) via numpy. bpm/key are declared null in v0 (deferred to librosa/essentia or the sononym warm-start). A failed decode FAILS rather than reporting a zeroed measurement; decoded_duration_s records how much audio was actually measured, and `decoder` records how it was read.",
+      "dir": "components/features",
+      "name": "features",
+      "params": [],
+      "requirements": [
+        "commands"
+      ],
+      "tier": "light",
+      "type": "data",
+      "verify": {
+        "asserts": [
+          "features"
+        ],
+        "has_contract": true,
+        "post_conditions": [
+          "features_measured_not_assumed"
+        ]
+      },
+      "version": "0.2"
+    },
+    {
       "definition_hash": "sha256:0fc889a9b2d11d99b9d40a559414f91d03821b62dcfe35b9528d7552d61f6326",
       "description": "Audio format conversion using FFmpeg (powered by audioconv-cli logic)",
       "dir": "components/format_conversion",
@@ -115,6 +159,29 @@
       "version": "1.1"
     },
     {
+      "definition_hash": "sha256:8b455dc4daf308d3d4ea7adf6abbc1e01eeba2881f54ff1d502cb36ba2da8865",
+      "description": "Pre-render the instant-audition artifacts: a 3s hook clip at the loudest window + a waveform PNG. This is what makes the archive scan sound-first and <50ms \u2014 you audition hooks, not full takes.",
+      "dir": "components/hook",
+      "name": "hook",
+      "params": [
+        "hook_seconds"
+      ],
+      "requirements": [
+        "commands"
+      ],
+      "tier": "light",
+      "type": "audio",
+      "verify": {
+        "asserts": [
+          "hook_clip",
+          "waveform"
+        ],
+        "has_contract": true,
+        "post_conditions": []
+      },
+      "version": "0.1"
+    },
+    {
       "definition_hash": "sha256:b53e6f9145b10e3a7d47e0fdbf29a51a624a362b26d4050d58ecf17eec82e480",
       "description": "LUFS audio normalization using FFmpeg loudnorm filter",
       "dir": "components/normalization",
@@ -142,6 +209,28 @@
         ]
       },
       "version": "1.1"
+    },
+    {
+      "definition_hash": "sha256:5bf81a826e164c72d82e53644cf2ad7c4494d8ad22066f3802b7b0039596f518",
+      "description": "Deterministic probe for the archive: content SHA-256 + container/stream facts + loudness for one audio file. No heavy deps (ffprobe/ffmpeg + stdlib). Measures from a file ffmpeg accepts \u2014 the original, or a stdlib-salvaged copy for WAVs whose chunk table ffmpeg refuses \u2014 and records which in `decoder`. A probe it cannot measure FAILS; it never writes a null record.",
+      "dir": "components/probe",
+      "name": "probe",
+      "params": [],
+      "requirements": [
+        "commands"
+      ],
+      "tier": "light",
+      "type": "data",
+      "verify": {
+        "asserts": [
+          "probe"
+        ],
+        "has_contract": true,
+        "post_conditions": [
+          "probe_facts_plausible"
+        ]
+      },
+      "version": "0.2"
     },
     {
       "definition_hash": "sha256:95cb940e4a820f3e6b613aae6adf9de5e8695bcc3b7405f489edd13de0b32dc0",
