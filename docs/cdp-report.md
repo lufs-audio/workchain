@@ -180,4 +180,4 @@ over a large personal archive.
 
 Engine and CLI: <https://github.com/lufs-audio/workchain> · Apache-2.0 · `npm i -g @lufs-audio/workchain`
 
-Thank you for the fast fix on #4. — Daniel Ramirez, LUFS Audio
+— Daniel, LUFS Audio
